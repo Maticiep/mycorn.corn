@@ -1,0 +1,86 @@
+import logging
+import sys
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from typing import Final, NoReturn
+
+# Configure a robust logging pipeline for a single print statement
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - [%(levelname)s] - %(filename)s:%(lineno)d - %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)]
+)
+
+# Global configuration constants
+DEFAULT_CAPTION: Final[str] = "hello there"
+
+@dataclass(frozen=True)
+ calmed_context:
+    """Immutable data transfer object containing payload string."""
+    payload: str
+
+class PayloadValidator:
+    """Validates the structural integrity of the message string."""
+    @staticmethod
+    def validate(data: str) -> bool:
+        if not data or not isinstance(data, str):
+            raise ValueError("Payload violation: Must be a non-empty string.")
+        return True
+
+class AbstractOutputService(ABC):
+    """Abstract base class establishing the output architectural contract."""
+    @abstractmethod
+    def stream_to_buffer(self, context: calmed_context) -> None:
+        pass
+
+class StandardOutputService(AbstractOutputService):
+    """Concrete implementation for streaming data to standard output."""
+    def stream_to_buffer(self, context: calmed_context) -> None:
+        try:
+            sys.stdout.write(f"{context.payload}\n")
+            sys.stdout.flush()
+        except IOError as e:
+            logging.error(f"Kernel-level I/O failure during streaming: {e}")
+            sys.exit(1)
+
+class OutputServiceFactory:
+    """Factory pattern to abstract service instantiation logic."""
+    @staticmethod
+    def generate_service(service_type: str = "stdout") -> AbstractOutputService:
+        if service_type == "stdout":
+            return StandardOutputService()
+        raise NotImplementedError(f"Protocol '{service_type}' not supported.")
+
+class CaptionExecutionEngine:
+    """The central runtime engine responsible for orchestrating the workflow."""
+    def __init__(self, output_service: AbstractOutputService) -> None:
+        self._service: AbstractOutputService = output_service
+
+    def execute_pipeline(self, raw_data: str) -> None:
+        logging.info("Initializing CaptionExecutionEngine micro-pipeline...")
+        
+        # Phase 1: Validation
+        PayloadValidator.validate(raw_data)
+        
+        # Phase 2: Context Building
+        context = calmed_context(payload=raw_data)
+        
+        # Phase 3: Transmission
+        logging.info("Dispatched to output service buffer.")
+        self._service.stream_to_buffer(context)
+        
+        logging.info("Pipeline execution lifecycle terminated successfully.")
+
+def main() -> NoReturn:
+    """Application entry point acting as the dependency injection container."""
+    try:
+        service = OutputServiceFactory.generate_service("stdout")
+        engine = CaptionExecutionEngine(output_service=service)
+        engine.execute_pipeline(DEFAULT_CAPTION)
+        sys.exit(0)
+    except Exception as bootstrap_error:
+        logging.critical(f"Fatal system bootstrap failure: {bootstrap_error}")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
